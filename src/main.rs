@@ -8,7 +8,7 @@ use actix_web::{
 #[allow(unused_imports)] // needs to be imported to give method access
 use rand::{seq::IteratorRandom, thread_rng};
 
-use serde_derive::Deserialize;
+use serde::Deserialize;
 use std::collections::{HashMap, HashSet};
 use tokio::sync::{Mutex, RwLock};
 
