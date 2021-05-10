@@ -2,7 +2,7 @@
 
 use actix_web::{
     delete, get, post,
-    web::{Bytes, Data, Path, Query},
+    web::{Data, Path, Query},
     App, HttpResponse, HttpServer, Responder,
 };
 #[allow(unused_imports)] // needs to be imported to give method access
@@ -13,7 +13,7 @@ use std::collections::{HashMap, HashSet};
 use tokio::sync::{Mutex, RwLock};
 
 type MessageQueueMap = RwLock<HashMap<String, Mutex<Vec<Message>>>>;
-type Message = Bytes;
+type Message = String;
 type InactiveUserSet = Mutex<HashSet<String>>;
 
 #[derive(Debug, Deserialize)]
@@ -35,14 +35,11 @@ async fn get_chat_partner(
     inactive_users: Data<InactiveUserSet>,
     pub_key: String,
 ) -> impl Responder {
-    if let mut users = inactive_users.lock().await {
-        let partner = { users.iter().choose(&mut thread_rng())?.clone() };
-        users.remove(&partner);
-        users.remove(&pub_key);
-        Some(partner)
-    } else {
-        None
-    }
+    let mut users = inactive_users.lock().await;
+    let partner = { users.iter().choose(&mut thread_rng())?.clone() };
+    users.remove(&partner);
+    users.remove(&pub_key);
+    Some(partner)
 }
 
 #[post("/messages")]
@@ -54,10 +51,9 @@ async fn start_chat(
         pub_key,
         other_pub_key,
     } = pub_keys.into_inner();
-    if let mut editable_user_map = active_users.write().await {
-        editable_user_map.insert(pub_key, Mutex::new(Vec::new()));
-        editable_user_map.insert(other_pub_key, Mutex::new(Vec::new()));
-    }
+    let mut editable_user_map = active_users.write().await;
+    editable_user_map.insert(pub_key, Mutex::new(Vec::new()));
+    editable_user_map.insert(other_pub_key, Mutex::new(Vec::new()));
 
     HttpResponse::Ok()
 }
@@ -68,7 +64,7 @@ async fn start_chat(
 async fn send_message(
     active_users: Data<MessageQueueMap>,
     pub_key: Path<String>,
-    message: Bytes,
+    message: String,
 ) -> impl Responder {
     let user_map = active_users.read().await;
     if let Some(reciever) = user_map.get(pub_key.as_ref()) {
@@ -86,7 +82,7 @@ async fn get_messages(
     let user_map = active_users.read().await;
     if let Some(user_messages_mutex) = user_map.get(pub_key.as_ref()) {
         let mut messages = user_messages_mutex.lock().await;
-        Some(messages.drain(..).collect::<Vec<_>>())
+        Some(messages.drain(..).collect::<Vec<_>>().join("\n"))
     } else {
         None
     }
